@@ -8,7 +8,8 @@ ROOT=$PWD
 OUT=$ROOT/.compute
 WASP=${WASP:-wasp}
 
-echo "==> wasp build"
+echo "==> wasp install and build"
+$WASP install
 $WASP build
 
 echo "==> Bundle the server"
