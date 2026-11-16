@@ -93,14 +93,14 @@ npx prisma project link <your-app-name>
 npx prisma git connect
 ```
 
-This workflow has not been run yet in this repository. Treat it as a starting point.
+The workflow installs Wasp, runs `deploy/build.sh` and deploys. In this repository a push to `main` deployed production and a push to another branch created a working preview with its own database.
 
 ## How it fits together
 
 | File | What it does |
 | --- | --- |
 | `schema.prisma` | Uses the `postgresql` provider, and adds the `debian-openssl-3.0.x` engine so Prisma Client can run on Compute. |
-| `src/serverSetup.ts` | A Wasp `setupFn` that serves the built client from the Wasp server when `CLIENT_BUILD_DIR` is set. |
+| `src/serverSetup.ts` | A Wasp `setupFn` that serves the built client from the Wasp server, and a middleware that reconnects to the database after an idle pause. Both only act on Compute. |
 | `deploy/build.sh` | Runs `wasp build`, bundles the server, builds the client, installs production dependencies for Linux, and assembles `.compute/`. |
 | `deploy/start.ts` | The service's entry point. Sets the environment variables Wasp expects, applies migrations, and starts the Wasp server. |
 | `deploy/service.ts`, `deploy/module.ts` | Declare the service, its database, its inputs and its public URL for [Prisma Composer](https://www.prisma.io/docs/composer). |
@@ -110,19 +110,19 @@ This workflow has not been run yet in this repository. Treat it as a starting po
 
 1. `schema.prisma` uses `postgresql` instead of `sqlite`, and lists the `debian-openssl-3.0.x` binary target.
 2. Auth uses username and password instead of email. The starter's `Dummy` email sender is refused by `wasp build`, and a real one needs an email provider account. To go back to email auth, set up [an email sender](https://wasp.sh/docs/advanced/email) and copy the email pages from a fresh `wasp new -t basic` project.
-3. `src/serverSetup.ts` and the `server.setupFn` entry in `main.wasp.ts` were added so one service can serve both the API and the client.
+3. `src/serverSetup.ts` and the `server` entry in `main.wasp.ts` were added, so one service can serve both the API and the client and recover its database connections after an idle pause.
 4. `deploy/`, `scripts/e2e.mjs` and the GitHub workflow were added.
 
 ## Known limitations and workarounds
 
 - **`DATABASE_URL` is reserved on Compute.** The platform sets it to a placeholder, and Wasp reads the connection string only from that variable. `deploy/start.ts` overwrites it inside the process with the real connection string before the Wasp server loads.
 - **The client's API URL is fixed at build time.** Wasp compiles `REACT_APP_API_URL` into the client and requires an absolute URL, but the app's URL is only known once it is deployed. The build uses a placeholder and `deploy/start.ts` replaces it with the real URL when the service starts.
-- **Prisma 5 cannot detect OpenSSL on Compute.** The runtime has no shell, which Prisma 5 uses for detection. `deploy/start.ts` points Prisma at the right engine files with `PRISMA_QUERY_ENGINE_LIBRARY` and `PRISMA_SCHEMA_ENGINE_BINARY`.
-- **Migrations run on every cold start.** With nothing to apply this takes about a second. Compute scales an idle service to zero, so the first request after a quiet period pays for it.
-- **The deployed folder is about 280 MB.** It contains all production dependencies of Wasp's SDK, including packages only the client or tests use. Uploading it is most of the deploy time (roughly 1.5 to 2 minutes).
+- **Database connections do not survive an idle pause.** Compute pauses a service that gets no requests. Without help, the first database query afterwards stalled for 10 to 30 seconds or failed with a connection pool timeout. `reconnectAfterIdle` in `src/serverSetup.ts` drops Prisma Client's connections when a request arrives after more than a minute of silence, which brought that first query down to under a second.
+- **Migrations are checked each time the service boots.** With nothing to apply this takes about a second.
+- **The deployed folder is about 280 MB.** It contains all production dependencies of Wasp's SDK, including packages only the client or tests use. Uploading it is most of the deploy time (roughly 1.5 to 2 minutes from a laptop, under a minute from GitHub Actions).
 - **No WebSockets and no always-on process.** Compute does not support WebSocket servers yet, so Wasp's [web sockets](https://wasp.sh/docs/advanced/web-sockets) will not work. Wasp [jobs](https://wasp.sh/docs/advanced/jobs) rely on a process that keeps polling the database, which a scale-to-zero service does not provide. Neither feature is used here, and neither was tested.
 - **`prisma dev` is not set up.** Use `wasp start` for local development.
-- **Deploys can fail transiently.** Two of ten deploys during testing failed with a state-store `409` or an auth refresh error, and worked when run again.
+- **Deploys can fail transiently.** Two of fourteen deploys during testing failed with a state-store `409` or an auth refresh error, and worked when run again.
 
 ## Versions this was tested with
 

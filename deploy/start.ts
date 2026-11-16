@@ -18,10 +18,6 @@ const root = import.meta.dirname;
 const { db } = service.load();
 const { origin, jwtSecret } = service.input();
 
-// Compute has no shell, so Prisma 5 cannot detect the OpenSSL version and
-// would pick the wrong engine. Point it at the right files directly.
-const target = "debian-openssl-3.0.x";
-
 Object.assign(process.env, {
   NODE_ENV: "production",
   PORT: String(service.port()),
@@ -31,14 +27,8 @@ Object.assign(process.env, {
   // server URL and the client URL are the same.
   WASP_SERVER_URL: origin,
   WASP_WEB_CLIENT_URL: origin,
-  PRISMA_QUERY_ENGINE_LIBRARY: path.join(
-    root,
-    `node_modules/.prisma/client/libquery_engine-${target}.so.node`,
-  ),
-  PRISMA_SCHEMA_ENGINE_BINARY: path.join(
-    root,
-    `node_modules/@prisma/engines/schema-engine-${target}`,
-  ),
+  // Compute pauses idle services; see reconnectAfterIdle in src/serverSetup.ts.
+  DB_RECONNECT_AFTER_IDLE_MS: "60000",
 });
 
 // Wasp compiles the API URL into the client at build time, but the app's URL
