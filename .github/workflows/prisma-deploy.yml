@@ -1,0 +1,32 @@
+name: prisma-deploy
+
+# Deploys every push to Prisma Compute: the default branch to production, any
+# other branch to its own preview environment. Needs the repository connected
+# to the Prisma project first (see the README).
+on:
+  push:
+
+concurrency:
+  group: prisma-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    if: github.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@v2
+      - name: Install Wasp
+        run: npm install -g @wasp.sh/wasp-cli@0.26.1
+      - uses: prisma/cloud-deploy-action@v1
+        with:
+          working-directory: deploy
+          build-command: npm run build

@@ -1,0 +1,18 @@
+{
+  "name": "wasp-prisma-compute-deploy",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@prisma/composer": "0.38.0",
+    "@prisma/composer-prisma-cloud": "0.38.0",
+    "arktype": "2.2.9"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "prisma": "8.0.0-rc.33"
+  },
+  "scripts": {
+    "build": "./build.sh",
+    "deploy": "prisma deploy"
+  }
+}
